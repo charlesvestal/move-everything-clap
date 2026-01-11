@@ -44,7 +44,7 @@ Implements Move Anything plugin_api_v1:
 
 Implements audio_fx_api_v1 for Signal Chain effects:
 - Same CLAP host core as main plugin
-- Processes audio input → CLAP plugin → audio output
+- Processes audio input -> CLAP plugin -> audio output
 
 ### CLAP Host Core (clap_host.c)
 
@@ -79,61 +79,9 @@ Module declares `"chainable": true` and `"component_type": "sound_generator"` in
 Audio FX wrapper installed to `modules/chain/audio_fx/clap/`.
 Chain presets installed to `modules/chain/patches/` by install script.
 
-## Building CLAP Plugins for Move
+## Move System Constraints
 
-Move requires ARM64 Linux CLAP plugins. Most distributed plugins are x86_64, so you'll need to cross-compile from source.
-
-### clap-plugins (Official Examples)
-
-The official CLAP example plugins include synthesizers, effects, and test utilities.
-
-```bash
-# Clone the repo
-git clone --recursive https://github.com/free-audio/clap-plugins.git
-cd clap-plugins
-
-# Build with Move's Docker toolchain
-docker run --rm -v $(pwd):/src -w /src sfriederichs/ableton-move-toolchain:main bash -c '
-  cmake -B build-arm64 \
-    -DCMAKE_SYSTEM_NAME=Linux \
-    -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
-    -DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc \
-    -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++ \
-    -DCMAKE_BUILD_TYPE=Release \
-    -DCLAP_PLUGINS_HEADLESS=ON
-  cmake --build build-arm64 --config Release
-'
-
-# Copy to Move
-scp build-arm64/clap-plugins.clap ableton@move.local:/data/UserData/move-anything/modules/clap/plugins/
-```
-
-This provides ~20 plugins including **CLAP Synth** (a working synthesizer).
-
-### Plugin Requirements
-
-For a plugin to work on Move:
-- Must be compiled for ARM64 Linux (aarch64)
-- Should build with `-DHEADLESS=ON` or no GUI dependencies
-- Cannot require X11, Cairo, OpenGL, or other GUI libraries
-- Cannot require libraries not on Move (e.g., libsndfile)
-
-### Known Working Plugins
-
-| Plugin | Source | Notes |
-|--------|--------|-------|
-| CLAP Synth | clap-plugins | Full synth, 25 params |
-| CLAP SVF | clap-plugins | Filter effect |
-| Gain | clap-plugins | Simple gain |
-| DC Offset | clap-plugins | Utility |
-
-### Known Incompatible
-
-| Plugin | Issue |
-|--------|-------|
-| LSP Plugins | Requires libsndfile, libcairo, X11 |
-| Surge XT | Too many dependencies |
-| Most commercial plugins | x86_64 only, GUI required |
+The Move runs glibc 2.35 and GLIBCXX up to 3.4.29. Plugins built on newer systems may fail to load. See BUILDING.md for details on building compatible plugins.
 
 ## Testing
 
