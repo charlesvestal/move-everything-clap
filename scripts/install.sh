@@ -35,6 +35,11 @@ fi
 echo "Creating plugins directory..."
 ssh ableton@move.local "mkdir -p /data/UserData/move-anything/modules/clap/plugins"
 
+# Set permissions so Module Store can update later
+echo "Setting permissions..."
+ssh ableton@move.local "chmod -R a+rw /data/UserData/move-anything/modules/clap"
+ssh ableton@move.local "chmod -R a+rw /data/UserData/move-anything/modules/chain/audio_fx/clap" 2>/dev/null || true
+
 echo ""
 echo "=== Install Complete ==="
 echo "Module installed to: /data/UserData/move-anything/modules/clap/"
