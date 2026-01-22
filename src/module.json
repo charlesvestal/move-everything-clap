@@ -2,7 +2,7 @@
   "id": "clap",
   "name": "CLAP Host",
   "abbrev": "CL",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Host for CLAP audio plugins",
   "author": "Move Anything",
   "ui": "ui.js",
