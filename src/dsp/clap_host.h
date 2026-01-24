@@ -37,6 +37,13 @@ typedef struct clap_host_list {
     int capacity;
 } clap_host_list_t;
 
+/* Per-instance param change queue */
+#define CLAP_MAX_PARAM_CHANGES 32
+typedef struct {
+    uint32_t param_id;
+    double value;
+} clap_param_change_t;
+
 /* Loaded plugin instance */
 typedef struct clap_instance {
     void *handle;                    /* dlopen handle */
@@ -46,6 +53,9 @@ typedef struct clap_instance {
     char path[1024];
     bool activated;
     bool processing;
+    /* Per-instance param change queue */
+    clap_param_change_t param_queue[CLAP_MAX_PARAM_CHANGES];
+    int param_queue_count;
 } clap_instance_t;
 
 /*

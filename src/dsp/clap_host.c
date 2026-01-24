@@ -464,14 +464,27 @@ static int s_buf_frames = 0;
 static clap_event_note_t s_note_events[MAX_MIDI_EVENTS];
 static int s_note_event_count = 0;
 
-/* Event list callbacks */
+/* Param event storage for current process block */
+#define MAX_PARAM_EVENTS 32
+static clap_event_param_value_t s_param_events[MAX_PARAM_EVENTS];
+static int s_param_event_count = 0;
+
+/* Event list callbacks - returns combined note + param events */
 static uint32_t s_events_size(const clap_input_events_t *list) {
-    return (uint32_t)s_note_event_count;
+    return (uint32_t)(s_note_event_count + s_param_event_count);
 }
 
 static const clap_event_header_t *s_events_get(const clap_input_events_t *list, uint32_t index) {
-    if (index >= (uint32_t)s_note_event_count) return NULL;
-    return &s_note_events[index].header;
+    /* Note events first */
+    if (index < (uint32_t)s_note_event_count) {
+        return &s_note_events[index].header;
+    }
+    /* Then param events */
+    index -= s_note_event_count;
+    if (index < (uint32_t)s_param_event_count) {
+        return &s_param_events[index].header;
+    }
+    return NULL;
 }
 
 static bool s_empty_push(const clap_output_events_t *list, const clap_event_header_t *event) { return true; }
@@ -523,6 +536,30 @@ static void prepare_midi_events(void) {
 
     s_midi_queue_count = 0;
     pthread_mutex_unlock(&s_midi_mutex);
+}
+
+/* Convert instance param queue to CLAP param events */
+static void prepare_param_events(clap_instance_t *inst) {
+    s_param_event_count = 0;
+
+    for (int i = 0; i < inst->param_queue_count && s_param_event_count < MAX_PARAM_EVENTS; i++) {
+        clap_event_param_value_t *evt = &s_param_events[s_param_event_count];
+        evt->header.size = sizeof(clap_event_param_value_t);
+        evt->header.time = 0;
+        evt->header.space_id = CLAP_CORE_EVENT_SPACE_ID;
+        evt->header.type = CLAP_EVENT_PARAM_VALUE;
+        evt->header.flags = 0;
+        evt->param_id = inst->param_queue[i].param_id;
+        evt->cookie = NULL;
+        evt->note_id = -1;
+        evt->port_index = -1;
+        evt->channel = -1;
+        evt->key = -1;
+        evt->value = inst->param_queue[i].value;
+        s_param_event_count++;
+    }
+
+    inst->param_queue_count = 0;
 }
 
 static void ensure_buffers(int frames) {
@@ -598,7 +635,10 @@ int clap_process_block(clap_instance_t *inst, const float *in, float *out, int f
     /* Prepare MIDI events from queue */
     prepare_midi_events();
 
-    /* Event lists with queued MIDI */
+    /* Prepare param events from instance queue */
+    prepare_param_events(inst);
+
+    /* Event lists with queued MIDI and param events */
     clap_input_events_t in_events = {
         .ctx = NULL,
         .size = s_events_size,
@@ -671,12 +711,25 @@ int clap_param_info(clap_instance_t *inst, int index, char *name, int name_len, 
 }
 
 int clap_param_set(clap_instance_t *inst, int index, double value) {
-    /* For now, we queue parameter changes via process events
-     * This is a simplified implementation - real one would use proper event queuing */
-    (void)inst;
-    (void)index;
-    (void)value;
-    return 0;  /* TODO: implement proper parameter setting */
+    if (!inst || !inst->plugin) return -1;
+
+    const clap_plugin_t *plugin = (const clap_plugin_t *)inst->plugin;
+    const clap_plugin_params_t *params =
+        (const clap_plugin_params_t *)plugin->get_extension(plugin, CLAP_EXT_PARAMS);
+    if (!params) return -1;
+
+    /* Get param info to find the actual param_id */
+    clap_param_info_t info;
+    if (!params->get_info(plugin, index, &info)) return -1;
+
+    /* Queue the param change for next process block */
+    if (inst->param_queue_count < CLAP_MAX_PARAM_CHANGES) {
+        inst->param_queue[inst->param_queue_count].param_id = info.id;
+        inst->param_queue[inst->param_queue_count].value = value;
+        inst->param_queue_count++;
+    }
+
+    return 0;
 }
 
 double clap_param_get(clap_instance_t *inst, int index) {
