@@ -67,9 +67,9 @@ static void fx_log(const char *msg) {
 
 /* Find and load a plugin by ID */
 static int load_plugin_by_id(const char *plugin_id) {
-    /* Scan plugins directory (in sound_generators/clap/plugins/) */
+    /* Scan plugins directory */
     char plugins_dir[512];
-    snprintf(plugins_dir, sizeof(plugins_dir), "%s/../../sound_generators/clap/plugins", g_module_dir);
+    snprintf(plugins_dir, sizeof(plugins_dir), "%s/plugins", g_module_dir);
 
     clap_free_plugin_list(&g_plugin_list);
     if (clap_scan_plugins(plugins_dir, &g_plugin_list) != 0) {

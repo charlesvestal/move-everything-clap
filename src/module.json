@@ -2,7 +2,7 @@
   "id": "clap",
   "name": "CLAP FX",
   "abbrev": "CL",
-  "version": "0.3.6",
+  "version": "0.3.7",
   "description": "Host for CLAP audio effect plugins",
   "author": "charlesvestal",
   "license": "MIT",
