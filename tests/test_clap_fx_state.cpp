@@ -120,6 +120,15 @@ int main(void) {
     assert(strstr(state_buf, target_plugin_id) != NULL);
     assert(strstr(state_buf, "\"params\"") != NULL);
 
+    /* Regression guard: keep knob-editable params at root preset level. */
+    char hierarchy_buf[4096];
+    len = api->get_param(inst, "ui_hierarchy", hierarchy_buf, sizeof(hierarchy_buf));
+    assert(len > 0);
+    assert(strstr(hierarchy_buf,
+                  "\"root\":{\"list_param\":\"plugin_index\",\"count_param\":\"plugin_count\",\"name_param\":\"plugin_name\",\"children\":null,") != NULL);
+    assert(strstr(hierarchy_buf,
+                  "\"params\":[\"param_0\",\"param_1\",\"param_2\",\"param_3\",\"param_4\",\"param_5\",\"param_6\",\"param_7\",{\"level\":\"category_jump\",\"label\":\"Jump to Category\"}]") != NULL);
+
     api->destroy_instance(inst);
     clap_free_plugin_list(&scanned);
 
