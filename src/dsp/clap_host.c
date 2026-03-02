@@ -20,6 +20,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 #include <dlfcn.h>
 #include <dirent.h>
 #include <pthread.h>
@@ -199,6 +200,125 @@ static int ends_with(const char *str, const char *suffix) {
     return strcmp(str + str_len - suffix_len, suffix) == 0;
 }
 
+typedef struct {
+    const char *name;
+    const char *category;
+} airwindows_category_entry_t;
+
+static const airwindows_category_entry_t k_airwindows_categories[] = {
+#include "airwindows_category_map.inc"
+};
+
+static const airwindows_category_entry_t k_airwindows_aliases[] = {
+    {"ClipOnly", "Clipping"},
+    {"NC-17", "Saturation"},
+};
+
+static int ascii_casecmp(const char *a, const char *b) {
+    while (*a && *b) {
+        int ca = tolower((unsigned char)*a);
+        int cb = tolower((unsigned char)*b);
+        if (ca != cb) return ca - cb;
+        ++a;
+        ++b;
+    }
+    return tolower((unsigned char)*a) - tolower((unsigned char)*b);
+}
+
+static int starts_with_case_insensitive(const char *str, const char *prefix) {
+    if (!str || !prefix) return 0;
+    while (*prefix) {
+        if (!*str) return 0;
+        int a = tolower((unsigned char)*str++);
+        int b = tolower((unsigned char)*prefix++);
+        if (a != b) return 0;
+    }
+    return 1;
+}
+
+static const char *skip_name_separators(const char *s) {
+    while (*s && (isspace((unsigned char)*s) || *s == ':' || *s == '-' || *s == '_')) s++;
+    return s;
+}
+
+static const char *extract_airwindows_plugin_name(const char *name) {
+    if (!name) return NULL;
+
+    while (*name && isspace((unsigned char)*name)) name++;
+    if (!starts_with_case_insensitive(name, "airwindows")) return NULL;
+
+    name += strlen("airwindows");
+    name = skip_name_separators(name);
+    return *name ? name : NULL;
+}
+
+static int lookup_airwindows_category_name(const char *plugin_name, char *category, int category_len) {
+    if (!plugin_name || !plugin_name[0] || !category || category_len <= 0) return 0;
+
+    for (size_t i = 0; i < (sizeof(k_airwindows_aliases) / sizeof(k_airwindows_aliases[0])); i++) {
+        if (ascii_casecmp(plugin_name, k_airwindows_aliases[i].name) != 0) continue;
+        snprintf(category, category_len, "%s", k_airwindows_aliases[i].category);
+        return 1;
+    }
+
+    for (size_t i = 0; i < (sizeof(k_airwindows_categories) / sizeof(k_airwindows_categories[0])); i++) {
+        if (ascii_casecmp(plugin_name, k_airwindows_categories[i].name) != 0) continue;
+
+        const char *mapped = k_airwindows_categories[i].category;
+        if (!mapped || !mapped[0] || ascii_casecmp(mapped, "Unclassified") == 0) {
+            snprintf(category, category_len, "Other");
+        } else {
+            snprintf(category, category_len, "%s", mapped);
+        }
+        return 1;
+    }
+    return 0;
+}
+
+static int infer_airwindows_category_from_name(const char *name, char *category, int category_len) {
+    if (!name || !category || category_len <= 0) return 0;
+
+    const char *plugin_name = extract_airwindows_plugin_name(name);
+    if (plugin_name && lookup_airwindows_category_name(plugin_name, category, category_len)) {
+        return 1;
+    }
+
+    /* Some builds expose bare plugin names (without "airwindows " prefix). */
+    while (*name && isspace((unsigned char)*name)) name++;
+    if (*name) {
+        if (lookup_airwindows_category_name(name, category, category_len)) {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+void clap_infer_category_from_metadata(const char *name,
+                                       const char *description,
+                                       const char *const *features,
+                                       char *category,
+                                       int category_len) {
+    (void)description;
+    (void)features;
+
+    if (!category || category_len <= 0) return;
+    category[0] = '\0';
+
+    if (infer_airwindows_category_from_name(name, category, category_len)) {
+        return;
+    }
+    snprintf(category, category_len, "Unsorted");
+}
+
+static void classify_plugin_category(const clap_plugin_descriptor_t *desc, char *category, int category_len) {
+    clap_infer_category_from_metadata(desc ? desc->name : "",
+                                      desc ? desc->description : "",
+                                      desc ? desc->features : NULL,
+                                      category,
+                                      category_len);
+}
+
 /* Helper: add plugin to list */
 static int list_add(clap_host_list_t *list, const clap_plugin_info_t *info) {
     if (list->count >= list->capacity) {
@@ -257,6 +377,7 @@ static int scan_clap_file(const char *path, clap_host_list_t *list) {
         strncpy(info.id, desc->id ? desc->id : "", sizeof(info.id) - 1);
         strncpy(info.name, desc->name ? desc->name : "", sizeof(info.name) - 1);
         strncpy(info.vendor, desc->vendor ? desc->vendor : "", sizeof(info.vendor) - 1);
+        classify_plugin_category(desc, info.category, sizeof(info.category));
         strncpy(info.path, path, sizeof(info.path) - 1);
         info.plugin_index = i;
 

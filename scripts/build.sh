@@ -14,6 +14,9 @@ if [ -z "$CROSS_PREFIX" ] && [ ! -f "/.dockerenv" ]; then
     echo "=== CLAP FX Module Build (via Docker) ==="
     echo ""
 
+    # Refresh map on host before entering Docker (Docker image may lack curl/wget).
+    ./scripts/generate_airwindows_category_map.sh
+
     # Build Docker image if needed
     if ! docker image inspect "$IMAGE_NAME" &>/dev/null; then
         echo "Building Docker image (first time only)..."
@@ -26,6 +29,7 @@ if [ -z "$CROSS_PREFIX" ] && [ ! -f "/.dockerenv" ]; then
     docker run --rm \
         -v "$REPO_ROOT:/build" \
         -u "$(id -u):$(id -g)" \
+        -e SKIP_AIRWINDOWS_CATEGORY_REFRESH=1 \
         -w /build \
         "$IMAGE_NAME" \
         ./scripts/build.sh
@@ -43,6 +47,11 @@ cd "$REPO_ROOT"
 echo "=== Building CLAP FX Module ==="
 echo "Cross prefix: $CROSS_PREFIX"
 
+# Refresh Airwindows category metadata (best effort with cached fallback).
+if [ "${SKIP_AIRWINDOWS_CATEGORY_REFRESH:-0}" != "1" ]; then
+    ./scripts/generate_airwindows_category_map.sh
+fi
+
 # Create build directories
 mkdir -p build
 mkdir -p dist/clap/plugins
@@ -54,6 +63,7 @@ ${CROSS_PREFIX}g++ -O3 -shared -fPIC -std=c++14 \
     -fno-exceptions \
     -DNDEBUG \
     src/chain_audio_fx/clap_fx.cpp \
+    src/chain_audio_fx/category_browser.c \
     src/dsp/clap_host.c \
     -o build/clap.so \
     -Isrc \
