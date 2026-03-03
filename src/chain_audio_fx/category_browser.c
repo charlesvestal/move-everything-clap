@@ -140,9 +140,22 @@ int clap_fx_write_category_items_json(const clap_fx_browser_index_t *index, char
             offset += wrote;
         }
 
+        /* Write prefix with index */
         int wrote = snprintf(buf + offset, buf_len - offset,
-                             "{\"index\":%d,\"label\":\"%s\"}",
-                             i, cat->name);
+                             "{\"index\":%d,\"label\":\"", i);
+        if (wrote < 0 || wrote >= buf_len - offset) return -1;
+        offset += wrote;
+
+        /* Write label with JSON escaping for " and \ */
+        for (const char *p = cat->name; *p; p++) {
+            if (offset >= buf_len - 2) return -1;
+            if (*p == '"' || *p == '\\') {
+                buf[offset++] = '\\';
+            }
+            buf[offset++] = *p;
+        }
+
+        wrote = snprintf(buf + offset, buf_len - offset, "\"}");
         if (wrote < 0 || wrote >= buf_len - offset) return -1;
         offset += wrote;
     }
