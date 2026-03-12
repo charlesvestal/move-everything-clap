@@ -8,7 +8,7 @@ A Move Everything module that hosts arbitrary CLAP plugins in-process, usable as
 
 ## Prerequisites
 
-- [Move Everything](https://github.com/charlesvestal/move-anything) installed on your Ableton Move
+- [Move Everything](https://github.com/charlesvestal/move-everything) installed on your Ableton Move
 - SSH access enabled: http://move.local/development/ssh
 - ARM64 Linux CLAP plugins (see "Plugin Compatibility" below)
 
